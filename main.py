@@ -36,28 +36,43 @@ def buildExpArray(t_vect, tauspace, t0, sigma):
     return tmp
 
 
-tauspace = np.logspace(-1.0, 3.0, num=90) #tau values used to build the distribution
+tauspace = np.logspace(-1.0, 3.0, num=50) #tau values used to build the distribution
 tauamps = tauspace*0.0
 alpha = 1 #hyper parameter of S contribution to chi2,
 
-exparray = buildExpArray(t_vect, tauspace, 0.0, 0.001)
+exparray = buildExpArray(t_vect, tauspace, 0.0, 0.0001)
 
 
 
-def residual(params):
+def calculateKinetic(params):
     p = np.array([x.value for x in params.values()])
     
     a_model_vect = exparray.dot(p)
 
-    return a_model_vect - a_vect
+    return a_model_vect
+
+def calcEntropy(params):
+    p = np.array([x.value for x in params.values()])
+    entvect = -np.abs(p)*np.log(np.abs(p))
+    for i in range(entvect.shape[0]): #bad solution
+        if(np.isnan(entvect[i])):
+            entvect[i] = 0.0
+    return entvect
+    #problems:
+    #minor: amps over 1 will give negative entropy
+    #major: amps with zero will give nan
+    #very major: how to incorporate that to residual vector?
 
 def residualWithRegularisation(params):
-    return residual(params)/error
+    values = calculateKinetic(params)
+    residuals = (values - a_vect)/(error*values.shape[0])
+
+    return np.append(residuals,alpha*calcEntropy(params)) #it can be done better i think
 
 def plotKinetic(params):
     plt.figure()
     plt.plot(t_vect, a_vect, "bo")
-    plt.plot(t_vect, residual(params)+a_vect, "r-")
+    plt.plot(t_vect, calculateKinetic(params), "r-")
     plt.xscale(value = "log")        
     plt.show()        
     
@@ -84,9 +99,3 @@ print(out.chisqr)
 
 plotKinetic(out_params)
 plotDistribution(out_params)
-
-#PLAN:
-#1. load kinetic
-#2. opt constant line of amps
-#3. start optimization with given alpha
-#4.  ....
