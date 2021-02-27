@@ -18,6 +18,8 @@ data = np.genfromtxt('test_data/OCP16 Ntag 2mm 470nm 0.4uJ.csv', delimiter=',')
 t_vect = data[0,1:]
 a_vect = data[50,1:] #at 500nm good for tests
 
+error = np.std(a_vect[np.where(t_vect <= -0.5)])
+
 t_vect = t_vect[20:]
 a_vect = a_vect[20:]
 
@@ -34,13 +36,13 @@ def buildExpArray(t_vect, tauspace, t0, sigma):
     return tmp
 
 
-errorsq = np.power(np.std(a_vect[np.where(t_vect <= -0.5)]),2)
-
-tauspace = np.logspace(-1.0, 3.0, num=10) #tau values used to build the distribution
+tauspace = np.logspace(-1.0, 3.0, num=90) #tau values used to build the distribution
 tauamps = tauspace*0.0
 alpha = 1 #hyper parameter of S contribution to chi2,
 
 exparray = buildExpArray(t_vect, tauspace, 0.0, 0.001)
+
+
 
 def residual(params):
     p = np.array([x.value for x in params.values()])
@@ -49,6 +51,22 @@ def residual(params):
 
     return a_model_vect - a_vect
 
+def residualWithRegularisation(params):
+    return residual(params)/error
+
+def plotKinetic(params):
+    plt.figure()
+    plt.plot(t_vect, a_vect, "bo")
+    plt.plot(t_vect, residual(params)+a_vect, "r-")
+    plt.xscale(value = "log")        
+    plt.show()        
+    
+def plotDistribution(params):
+    p = np.array([x.value for x in params.values()])
+    plt.figure()
+    plt.plot(tauspace, p, "bo")  
+    plt.xscale(value = "log")
+    plt.show() 
 
 
 p = lmfit.Parameters()
@@ -58,11 +76,14 @@ for i in range(tauspace.shape[0]):
 if(tauspace.shape[0] >= t_vect.shape[0]):
     raise Exception("Space of taus has to be smaller that number of delays!")
 
-mini = lmfit.Minimizer(residual, p, nan_policy='propagate')
+mini = lmfit.Minimizer(residualWithRegularisation, p, nan_policy='propagate')
 out = mini.minimize(method='leastsq')
 out_params = out.params
 lmfit.report_fit(out.params)
+print(out.chisqr)
 
+plotKinetic(out_params)
+plotDistribution(out_params)
 
 #PLAN:
 #1. load kinetic
